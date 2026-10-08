@@ -90,10 +90,13 @@ buffett_and_munger/
     │   └── 08-industry-playbooks.md# 行业 playbook
     └── munger/                           # 芒格模块
         ├── 25-biases.md                  # 25 种人类误判心理倾向
-        ├── research.md                   # 芒格思想体系研究
-        ├── 查理芒格思想体系深度调研-20260404.md
-        └── 芒格表达风格DNA分析.md         # 表达风格模仿语料
+        ├── research.md                   # 芒格思想体系研究索引
+        ├── thought-system-research-20260404.md
+        └── expression-style-dna.md        # 表达风格参考
+└── tools/                                 # 官方公告、PDF/OCR、财务校验工具
 ```
+
+工具依赖及用法见 [`tools/README.md`](tools/README.md)。基础依赖可通过 `python -m pip install -r tools/requirements.txt` 安装；中文 OCR 为可选依赖，详见 `tools/requirements-ocr.txt`。
 
 ## 工作流
 

@@ -1,0 +1,3 @@
+# Optional Chinese OCR backend used by pdf_ingest.py --ocr.
+# Native PDF text extraction and page rendering only require PyMuPDF + Poppler.
+rapidocr_onnxruntime==1.2.3

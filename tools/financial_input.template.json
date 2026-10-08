@@ -1,0 +1,40 @@
+{
+  "company": "",
+  "code": "",
+  "as_of_date": "",
+  "quote_date": "",
+  "sources": {
+    "latest_report": "",
+    "prior_ytd_report": "",
+    "annual_report": "",
+    "quote": ""
+  },
+  "market": {
+    "price_cny": null,
+    "shares_outstanding": null,
+    "parent_equity_cny": null,
+    "dividend_per_share_cny": null
+  },
+  "earnings_cash_flow": {
+    "fy_parent_net_income_cny": null,
+    "current_ytd_parent_net_income_cny": null,
+    "prior_ytd_parent_net_income_cny": null,
+    "fy_consolidated_net_income_cny": null,
+    "fy_operating_cash_flow_cny": null,
+    "current_ytd_consolidated_net_income_cny": null,
+    "current_ytd_operating_cash_flow_cny": null,
+    "current_ytd_capex_cash_cny": null
+  },
+  "balance_sheet": {
+    "cash_and_equivalents_cny": null,
+    "short_term_borrowings_cny": null,
+    "current_maturities_long_term_debt_cny": null,
+    "long_term_borrowings_cny": null,
+    "total_assets_cny": null,
+    "total_liabilities_cny": null
+  },
+  "interest": {
+    "current_ytd_ebit_cny": null,
+    "current_ytd_interest_expense_cny": null
+  }
+}
