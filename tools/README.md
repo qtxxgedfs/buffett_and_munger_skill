@@ -5,9 +5,9 @@
 ## 依赖
 
 - Python 3.10+
-- 必需：`requests`、`PyMuPDF`；可用 `python -m pip install -r .pi/skills/buffett_and_munger/tools/requirements.txt` 安装。
+- 必需：`requests`、`PyMuPDF`；可用 `python -m pip install -r .pi/skills/buffett-and-munger/tools/requirements.txt` 安装。
 - PDF 原生版面文本优先使用 Poppler 的 `pdftotext -layout`；没有时回退到 PyMuPDF。
-- 可选中文 OCR：`python -m pip install -r .pi/skills/buffett_and_munger/tools/requirements-ocr.txt`
+- 可选中文 OCR：`python -m pip install -r .pi/skills/buffett-and-munger/tools/requirements-ocr.txt`
   - 当前工作环境已安装 `rapidocr_onnxruntime`。OCR 输出可能错字或错序，重要数据必须回看 PDF 原页。
   - `pdf_ingest.py --ocr` 优先使用安装了 `chi_sim` 的 Tesseract；否则使用 RapidOCR。
 
@@ -16,11 +16,11 @@
 使用 `task_log.py`，不再事后手填精确秒数。日志为追加式JSONL，时间戳带时区；命令用单调时钟测耗时，人工阅读/分析跨进程使用墙钟。
 
 ```bash
-python -X utf8 .pi/skills/buffett_and_munger/tools/task_log.py --log work/work_601318/timing.jsonl start 阅读与分析
+python -X utf8 .pi/skills/buffett-and-munger/tools/task_log.py --log work/work_601318/timing.jsonl start 阅读与分析
 # 阅读和分析结束后立即记录：
-python -X utf8 .pi/skills/buffett_and_munger/tools/task_log.py --log work/work_601318/timing.jsonl end 阅读与分析
+python -X utf8 .pi/skills/buffett-and-munger/tools/task_log.py --log work/work_601318/timing.jsonl end 阅读与分析
 
-python -X utf8 .pi/skills/buffett_and_munger/tools/task_log.py --log work/work_601318/timing.jsonl run --step 公告检索 -- python -X utf8 .pi/skills/buffett_and_munger/tools/official_filings.py 601318 --out work/work_601318/filings.md --json work/work_601318/filings.json --download-dir work/work_601318/pdfs
+python -X utf8 .pi/skills/buffett-and-munger/tools/task_log.py --log work/work_601318/timing.jsonl run --step 公告检索 -- python -X utf8 .pi/skills/buffett-and-munger/tools/official_filings.py 601318 --out work/work_601318/filings.md --json work/work_601318/filings.json --download-dir work/work_601318/pdfs
 ```
 
 `run` 串行执行一个命令，并继承 `INVEST_LOG` 给子工具，记录返回码。下载请求记录URL、状态、字节数、PDF校验和可获取的重试历史；PDF工具记录原生抽取耗时，OCR详细页数/耗时追加到PDF处理目录（`--outdir`）的 `ocr_metrics.jsonl`，不是最终报告的 `reports/` 目录。请求耗时包含重试等待，未单独测量的纯网络等待、模型思考时间不能杜撰。汇总Markdown时保留未结束步骤，不重复累加父子耗时。只在开始、关键障碍、完成时发送进度消息。
@@ -31,13 +31,13 @@ python -X utf8 .pi/skills/buffett_and_munger/tools/task_log.py --log work/work_6
 
 ```bash
 # 推荐使用 UTF-8 模式，并将该股票的资料统一收在独立目录
-python -X utf8 .pi/skills/buffett_and_munger/tools/official_filings.py 600519 \
+python -X utf8 .pi/skills/buffett-and-munger/tools/official_filings.py 600519 \
   --out work/work_600519/filings.md \
   --json work/work_600519/filings.json \
   --download-dir work/work_600519/pdfs
 
 # 若公司曾更名，可把历史简称作为额外检索词
-python -X utf8 .pi/skills/buffett_and_munger/tools/official_filings.py 000001 \
+python -X utf8 .pi/skills/buffett-and-munger/tools/official_filings.py 000001 \
   --name 历史简称 \
   --out work/work_000001/filings.md \
   --json work/work_000001/filings.json \
@@ -65,7 +65,7 @@ python -X utf8 .pi/skills/buffett_and_munger/tools/official_filings.py 000001 \
 先对整份 PDF 做一次全文原生抽取，不渲染或 OCR：
 
 ```bash
-python -X utf8 .pi/skills/buffett_and_munger/tools/pdf_ingest.py \
+python -X utf8 .pi/skills/buffett-and-munger/tools/pdf_ingest.py \
   work/work_600519/pdfs/2026-08-15_report.pdf \
   --outdir work/work_600519/2026_H1 --native-only
 ```
@@ -73,7 +73,7 @@ python -X utf8 .pi/skills/buffett_and_munger/tools/pdf_ingest.py \
 原生抽取会在Poppler中文缺失时比较PyMuPDF文本，优先选择中文更完整的结果，避免不必要OCR。根据目录与页分隔，先记录“问题→指标→PDF物理页码→理由”。首轮通常6–12页；原生文字可读时只渲染必要页面回看，不OCR。OCR必须显式传 `--pages`，超过12页须写明原因并加 `--allow-large-ocr`。示例：
 
 ```bash
-python -X utf8 .pi/skills/buffett_and_munger/tools/pdf_ingest.py \
+python -X utf8 .pi/skills/buffett-and-munger/tools/pdf_ingest.py \
   work/work_600519/pdfs/2026-08-15_report.pdf \
   --outdir work/work_600519/2026_H1 \
   --pages 5-7,25-28,60-62 --dpi 220 --ocr
@@ -86,7 +86,7 @@ python -X utf8 .pi/skills/buffett_and_munger/tools/pdf_ingest.py \
 价格只是估值输入，必须留存行情源和明确时间戳。可用内置脚本同时读取腾讯与新浪行情，并将核验结果保存到该股票目录：
 
 ```bash
-python -X utf8 .pi/skills/buffett_and_munger/tools/market_quote.py 600519 \
+python -X utf8 .pi/skills/buffett-and-munger/tools/market_quote.py 600519 \
   --out work/work_600519/market_quote.json
 ```
 
@@ -97,10 +97,10 @@ python -X utf8 .pi/skills/buffett_and_munger/tools/market_quote.py 600519 \
 先生成 JSON 模板，把从报告原页确认的数据按人民币元、股数按股录入：
 
 ```bash
-python .pi/skills/buffett_and_munger/tools/financial_sanity.py \
+python .pi/skills/buffett-and-munger/tools/financial_sanity.py \
   --template work/financial_input.json
 # 编辑 financial_input.json 后：
-python .pi/skills/buffett_and_munger/tools/financial_sanity.py \
+python .pi/skills/buffett-and-munger/tools/financial_sanity.py \
   work/financial_input.json --out work/financial_checks.md
 ```
 
