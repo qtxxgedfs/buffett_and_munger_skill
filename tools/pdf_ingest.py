@@ -16,6 +16,9 @@ import re
 import shutil
 import subprocess
 import sys
+import time
+import json
+from task_log import timed
 from pathlib import Path
 
 import pymupdf
@@ -46,6 +49,25 @@ def cjk_count(text: str) -> int:
     return sum("\u4e00" <= char <= "\u9fff" for char in text)
 
 
+def configure_console_utf8() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, OSError):
+            pass
+
+
+def merge_ocr_pages(existing: str, additions: list[str]) -> str:
+    """Merge page-delimited OCR blocks by PDF page number; newest block wins."""
+    blocks: dict[int, str] = {}
+    for source in [existing, *additions]:
+        headers = list(re.finditer(r"(?m)^--- PAGE (\d+) ---\s*$", source))
+        for index, match in enumerate(headers):
+            end = headers[index + 1].start() if index + 1 < len(headers) else len(source)
+            blocks[int(match.group(1))] = source[match.end():end].strip()
+    return "\n\n".join(f"--- PAGE {page} ---\n{blocks[page]}" for page in sorted(blocks))
+
+
 def extract_native(pdf: Path, doc: pymupdf.Document, outdir: Path) -> str:
     pdftotext = shutil.which("pdftotext")
     text_path = outdir / "native_text.txt"
@@ -57,7 +79,15 @@ def extract_native(pdf: Path, doc: pymupdf.Document, outdir: Path) -> str:
             check=False,
         )
         if result.returncode == 0 and text_path.exists():
-            return text_path.read_text(encoding="utf-8", errors="replace")
+            text = text_path.read_text(encoding="utf-8", errors="replace")
+            if cjk_count(text) >= 10 * len(doc):
+                return text
+            # Some Chinese PDFs have broken Poppler font mapping but usable MuPDF text.
+            alternative = '\n\n'.join(f'--- PAGE {i + 1} ---\n{page.get_text("text", sort=True)}' for i, page in enumerate(doc))
+            if cjk_count(alternative) > cjk_count(text):
+                text_path.write_text(alternative, encoding='utf-8')
+                return alternative
+            return text
     # Fallback retains per-page separators, though layout may be weaker.
     text = "\n\n".join(f"--- PAGE {i + 1} ---\n{page.get_text('text', sort=True)}" for i, page in enumerate(doc))
     text_path.write_text(text, encoding="utf-8")
@@ -84,7 +114,17 @@ def main() -> int:
     parser.add_argument("--pages", help="要渲染/OCR 的 1-based 页码，如 5-12,27-40；默认前 10 页；all 表示全部")
     parser.add_argument("--dpi", type=int, default=180)
     parser.add_argument("--ocr", action="store_true", help="使用 Tesseract chi_sim 或 RapidOCR 对选定页 OCR")
+    parser.add_argument("--native-only", action="store_true", help="只抽取全文原生文本并检查中文可读性，不渲染页面")
+    parser.add_argument("--merge-ocr", action="store_true", help="将本次 OCR 页合并到已有 OCR 文件；重复页由本次结果替换")
+    parser.add_argument('--allow-large-ocr', action='store_true', help='明确允许单次超过12页OCR；须先记录选页理由')
     args = parser.parse_args()
+    configure_console_utf8()
+    if args.ocr and not args.pages:
+        parser.error('OCR必须显式指定--pages；先读取原生文本/目录，按问题选页')
+    if args.native_only and (args.ocr or args.merge_ocr):
+        parser.error("--native-only 不能与 --ocr 或 --merge-ocr 同时使用")
+    if args.merge_ocr and not args.ocr:
+        parser.error("--merge-ocr 需要同时指定 --ocr")
     if not args.pdf.is_file():
         parser.error(f"找不到 PDF：{args.pdf}")
     args.outdir.mkdir(parents=True, exist_ok=True)
@@ -93,8 +133,27 @@ def main() -> int:
         doc = pymupdf.open(args.pdf)
     except Exception as exc:
         parser.error(f"无法打开 PDF：{exc}")
+    with timed('native_extract', pdf=str(args.pdf), page_count=len(doc)):
+        text = extract_native(args.pdf, doc, args.outdir)
+    if args.native_only:
+        cjk = cjk_count(text)
+        cjk_per_page = cjk / max(1, len(doc))
+        notes = [
+            f"PDF：{args.pdf.resolve()}",
+            f"页数：{len(doc)}；原生全文中文字符数：{cjk}（平均 {cjk_per_page:.1f}/页）",
+            f"原生全文：{(args.outdir / 'native_text.txt').resolve()}",
+            "模式：只抽取原生文本；未渲染页面、未执行 OCR。",
+        ]
+        if cjk_per_page < 10:
+            notes.append("警告：原生文本层中文字符很少，可能是字体映射问题；请根据 PDF 目录定位关键页，再选页渲染/OCR。")
+        (args.outdir / "README.txt").write_text("\n".join(notes) + "\n", encoding="utf-8")
+        print("\n".join(notes))
+        doc.close()
+        return 0
+
     pages = parse_pages(args.pages, len(doc))
-    text = extract_native(args.pdf, doc, args.outdir)
+    if args.ocr and len(pages) > 12 and not args.allow_large_ocr:
+        parser.error('单次OCR超过12页：请缩小核心页范围，或记录理由后使用--allow-large-ocr')
     chosen_text = "\n".join(doc[i].get_text("text", sort=True) for i in pages)
     cjk = cjk_count(chosen_text)
     cjk_per_page = cjk / max(1, len(pages))
@@ -117,6 +176,7 @@ def main() -> int:
     if cjk_per_page < 10:
         notes.append("警告：所选页的原生文本层中文字符很少，可能是字体映射问题；请优先查看页面图片/OCR，不要仅据 native_text.txt 引用表格标签。")
     if args.ocr:
+        ocr_started = time.perf_counter()
         binary, langs = tesseract_info()
         ocr_blocks = []
         if binary and "chi_sim" in langs:
@@ -156,9 +216,20 @@ def main() -> int:
                 ocr_engine = "failed"
         if ocr_blocks:
             ocr_path = args.outdir / "ocr_selected_pages.txt"
-            ocr_path.write_text("\n\n".join(ocr_blocks), encoding="utf-8")
+            if args.merge_ocr and ocr_path.exists():
+                merged = merge_ocr_pages(ocr_path.read_text(encoding="utf-8"), ocr_blocks)
+            elif args.merge_ocr:
+                merged = merge_ocr_pages("", ocr_blocks)
+            else:
+                merged = merge_ocr_pages("", ocr_blocks)
+            ocr_path.write_text(merged + "\n", encoding="utf-8")
             notes.append(f"OCR 引擎：{ocr_engine}")
             notes.append(f"OCR 文本：{ocr_path.resolve()}（识别结果仍需与 PDF 原页抽查）")
+        metrics = {'pdf': str(args.pdf), 'page_count': len(doc), 'requested_pages': [p+1 for p in pages],
+                   'completed_pages': len(ocr_blocks), 'engine': ocr_engine,
+                   'elapsed_seconds': round(time.perf_counter()-ocr_started, 6)}
+        with (args.outdir / 'ocr_metrics.jsonl').open('a', encoding='utf-8') as handle:
+            handle.write(json.dumps(metrics, ensure_ascii=False) + '\n')
 
     (args.outdir / "README.txt").write_text("\n".join(notes) + "\n", encoding="utf-8")
     print("\n".join(notes))
